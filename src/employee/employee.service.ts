@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -15,7 +15,13 @@ export class EmployeeService {
 
 
   create(createEmployeeDto: CreateEmployeeDto) {
-    return 'This action adds a new employee';
+    createEmployeeDto.name = createEmployeeDto.name.toLocaleLowerCase()
+    try{
+      const createEmployee = this.employeeRepository.create(createEmployeeDto)
+      return this.employeeRepository.save(createEmployee)
+    }catch(error){
+      this.handleException(error, createEmployeeDto.name)
+    }
   }
 
   findAll() {
@@ -33,4 +39,12 @@ export class EmployeeService {
   remove(id: number) {
     return `This action removes a #${id} employee`;
   }
+
+  private handleException(error: any, employeeName:string){
+      if(error === '23505'){
+        throw new BadRequestException(`ya existe en la base de datos la categoria ${employeeName}`)
+      }
+      console.log(error)
+      throw new InternalServerErrorException(`no creaste una categoria- check server log`)
+    }
 }
