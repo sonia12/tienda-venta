@@ -31,6 +31,7 @@ export class Order {
     @JoinColumn({name:'id_employee'})
     emplOrder!:Employee
 
+    
     @OneToMany(
         ()=>OrderDetail,
         (orderdetail)=>orderdetail.orderOrder_detail

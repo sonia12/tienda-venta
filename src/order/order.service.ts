@@ -40,15 +40,60 @@ export class OrderService {
   }
 
   findAll() {
-    return this.orderRepository.find()
+    return this.orderRepository.find({
+      relations:{emplOrder:true, custOrder: true}
+    })
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} order`;
+  async findOne(id: number) {
+    const service = await this.orderRepository.findOne({
+      where: {id},
+      relations:{emplOrder: true, custOrder: true }
+    })
+    if(!service){
+      throw new NotFoundException (`el order id $(id) no existe`)
+    }
+    return service
   }
 
-  update(id: number, updateOrderDto: UpdateOrderDto) {
-    return `This action updates a #${id} order`;
+  async update(id: number, updateOrderDto: UpdateOrderDto) {
+    const orderUpdate = await this.orderRepository.findOne({
+      where: {id}
+    })
+    if(!orderUpdate){
+      throw new NotFoundException(`no se encontro la orden con el id ${id}`)
+    }
+
+    const updateData:Partial<Order>={}  // 
+
+    if(updateOrderDto.id_customer){
+      const customer = await this.customerRepository.findOne({
+        where:{id:updateOrderDto.id_customer}
+      })
+      if(!customer){
+        throw new NotFoundException(`No existe el cliente con el id ${updateOrderDto.id_customer}`);
+      }
+      updateData.custOrder = customer;  //
+    }
+    
+    if(updateOrderDto.id_employee){
+      const employee = await this.employeeRepository.findOne({
+        where:{id:updateOrderDto.id_employee}
+      })
+      if(!employee){
+        throw new NotFoundException(`No existe el empleado con el id ${updateOrderDto.id_employee}`);
+      }
+      updateData.emplOrder = employee; //
+
+    }
+
+    await this.orderRepository.update(id, updateData)
+    return {
+      ...orderUpdate, ...updateOrderDto
+
+    }
+
+    
   }
 
   remove(id: number) {

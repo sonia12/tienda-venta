@@ -17,9 +17,15 @@ export class SupplierController {
     return this.supplierService.findAll();
   }
 
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.supplierService.findOne(+id);
+  }
+
+  @Get('name/:name')
+  supplierNameWithProduct(@Param('name') name:string){
+    return this.supplierService.supplierNameWithProduct(name)
   }
 
   @Patch(':id')

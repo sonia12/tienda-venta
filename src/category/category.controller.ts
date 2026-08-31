@@ -18,8 +18,13 @@ export class CategoryController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.categoryService.findOne(+id);
+  findCategoryById(@Param('id') id: string) {
+    return this.categoryService.findCategoryById(+id);
+  }
+
+  @Get('name/:name')
+  findCategoryByName(@Param('name') name:string){
+    return this.categoryService.findCategoryByName(name)
   }
 
   @Patch(':id')

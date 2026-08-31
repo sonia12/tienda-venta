@@ -38,12 +38,22 @@ export class OrderDetailService {
     
 
   findAll() {
-    return this.OrderDetailRepository.find()
+    return this.OrderDetailRepository.find({
+      relations:{prodOrder_datail:true, orderOrder_detail:true}
+    })
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} orderDetail`;
-  }
+  async findOne(id: number) {
+    const orderDetail = await this.OrderDetailRepository.findOne({
+      where: {id},
+      relations:{prodOrder_datail: true, orderOrder_detail: true}
+    })
+    if(!orderDetail){
+      throw new NotFoundException(`no se encontro el id ${id} del detalle de la orden `)
+
+    }
+    return orderDetail
+  } 
 
   update(id: number, updateOrderDetailDto: UpdateOrderDetailDto) {
     return `This action updates a #${id} orderDetail`;
