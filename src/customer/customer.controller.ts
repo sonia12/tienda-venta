@@ -22,6 +22,13 @@ export class CustomerController {
     return this.customerService.findOne(+id);
   }
 
+  @Get('name/:name')
+  findByNameWithOrder(@Param('name') name:string){
+    return this.customerService.findByNameWithOrder(name)
+  }
+
+
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
     return this.customerService.update(+id, updateCustomerDto);

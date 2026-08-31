@@ -6,6 +6,7 @@ import { Product } from './entities/product.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from '../category/entities/category.entity';
 import { Supplier } from '../supplier/entities/supplier.entity';
+import { UpdateSupplierDto } from '../supplier/dto/update-supplier.dto';
 
 @Injectable()
 export class ProductService {
@@ -24,13 +25,13 @@ export class ProductService {
   async create(createProductDto: CreateProductDto) {
     createProductDto.name = createProductDto.name.toLocaleLowerCase()
     try{
-      //encontrar category
+      //encontrar category para crear el producto
       const category = await this.categoryRepository.findOneBy({id:createProductDto.id_category})
       if(!category){
         throw new NotFoundException('la categoria no se encontro')
       }
 
-      //encontrar supplier
+      //encontrar supplier para crear el producto
       const supplier = await this.supplierRepository.findOneBy({id:createProductDto.id_supplier})
       if(!supplier){
         throw new NotFoundException('el proveedor no se encontro')
@@ -46,15 +47,73 @@ export class ProductService {
   }
 
   findAll() {
-    return this.productRepository.find()
+    return this.productRepository.find({
+      relations:{categoryProd:true, orderProd:true}
+    })
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} product`;
+  async findOne(id: number) {
+    const product = await this.productRepository.findOne({
+      where: {id},
+      relations:{supplierProd: true, categoryProd: true}
+    })
+    if(!product){
+      throw new NotFoundException(`el producto con id ${id} no se encontro`)
+    }
+    return product;
   }
 
-  update(id: number, updateProductDto: UpdateProductDto) {
-    return `This action updates a #${id} product`;
+  async findNameWithProd(name:string){
+    const productName = await this.productRepository.findOne({
+      where: {name:name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')},
+      relations:{categoryProd: true, supplierProd: true}
+    })
+    if(!productName){
+      throw new NotFoundException(`el producto con id ${name} no se encontro`)
+    }
+    return productName
+  }
+
+
+
+
+  async update(id: number, updateProductDto: UpdateProductDto) {
+    const produpdate = await this.productRepository.findOne({
+      where: {id}
+    })
+    if(!produpdate){
+        throw new NotFoundException(`no existe el id ${id} del producto`)
+      }
+    if(updateProductDto.name){
+      updateProductDto.name = updateProductDto.name.toLocaleLowerCase().trim()
+    }
+    if (updateProductDto.id_category) {
+    const category = await this.categoryRepository.findOne({
+      where: { id: updateProductDto.id_category },
+    });
+      if (!category) {
+        throw new NotFoundException(`No existe la categoria con el id ${updateProductDto.id_category}`);
+      }
+    }
+    if(updateProductDto.id_supplier){
+      const supplier = await this.supplierRepository.findOne({
+        where:{id:updateProductDto.id_supplier}
+      })
+      if(!supplier){
+        throw new NotFoundException(`No existe el proveedor con el id ${updateProductDto.id_supplier}`);
+      }
+
+    }
+    try{
+      await this.productRepository.update(id, updateProductDto)
+      return {
+        ...produpdate, ...updateProductDto
+      }
+    }catch(error){
+      this.handleException(error,updateProductDto.name?? produpdate.name)
+
+    }
+    
   }
 
   remove(id: number) {

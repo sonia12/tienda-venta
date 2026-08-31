@@ -21,7 +21,7 @@ export class Supplier {
     
     @OneToMany(
         ()=>Product,
-        (producto)=>producto.supplierProd
+        (producto)=>producto.categoryProd
     )
     ProdSupplier!: Product []
 

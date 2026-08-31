@@ -24,6 +24,8 @@ export class Product {
     @Column({type: 'int'})
     quantity_per_unit!: number
 
+    @Column()
+    id_category!: number;
 
     @ManyToOne(
         ()=>Supplier,
@@ -39,11 +41,11 @@ export class Product {
         ()=>Category,
         (category)=>category.prodCategory,
         {cascade: true}
-
     )
     @JoinColumn({name:'id_category'})
     categoryProd!: Category
 
+    
     @OneToMany(
         ()=>OrderDetail,
         (OrderDetail)=>OrderDetail.prodOrder_datail

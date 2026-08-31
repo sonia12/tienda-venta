@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Repository } from 'typeorm';
@@ -18,7 +18,7 @@ export class CategoryService {
 
 
   async create(createCategoryDto: CreateCategoryDto) {
-    createCategoryDto.name= createCategoryDto.name.toLocaleLowerCase()
+    createCategoryDto.name= createCategoryDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
 
     try {
     const createCategory= this.categoryRepository.create(createCategoryDto)
@@ -34,13 +34,59 @@ export class CategoryService {
     return this.categoryRepository.find()
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} category`;
+  async findCategoryById(id: number) {
+    const category = await this.categoryRepository.findOne({
+      where: {id},
+      relations:{prodCategory: true}
+    })
+    if(!category){
+      throw new NotFoundException(`no existe la categoria N° ${id}`)
+    }
+    return category
   }
 
-  update(id: number, updateCategoryDto: UpdateCategoryDto) {
-    return `This action updates a #${id} category`;
+  
+
+  async findCategoryByName(name: string){
+    
+    const categoryName = await this.categoryRepository.findOne({
+      where:{name:name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')},
+      relations:{prodCategory: true}
+    })
+    if(!categoryName){
+      throw new NotFoundException(`no existe la categoria de name ${name}`)
+    }
+    return categoryName
+
   }
+
+  async update(id: number, updateCategoryDto: UpdateCategoryDto) {
+    const categoryUpdate = await this.categoryRepository.findOne({
+      where: {id }
+    })
+    if(!categoryUpdate){
+      throw new NotFoundException(`no existe la categoria con id ${id}`)
+    }
+    if(updateCategoryDto.name){
+      updateCategoryDto.name = updateCategoryDto.name.toLocaleLowerCase().trim()
+    }
+    if(updateCategoryDto.description){
+      updateCategoryDto.description = updateCategoryDto.description.toLocaleLowerCase().trim()
+    }
+    try{
+      
+    await this.categoryRepository.update(id,updateCategoryDto)
+    return{
+      ...categoryUpdate, ...updateCategoryDto
+    }
+
+    }catch(error){
+      this.hadleException(error, updateCategoryDto.name?? categoryUpdate.name)
+
+    }
+  }
+
+
 
   remove(id: number) {
     return `This action removes a #${id} category`;
