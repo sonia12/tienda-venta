@@ -1,21 +1,22 @@
-import { IsOptional, IsString, MinLength } from "class-validator"
+import { IsNotEmpty, IsOptional, IsString, Length, MinLength } from "class-validator"
 
 export class CreateSupplierDto {
     @IsString()
-    @MinLength(1)
+    @Length(1,100)
+    @IsNotEmpty()
     name!: string
 
     @IsOptional()
     @IsString()
-    @MinLength(1)
-    address!: string
+    @Length(1,200)
+    address?: string
 
     @IsOptional()
     @IsString()
-    @MinLength(1)
-    city!: string
+    @Length(1,50)
+    city?: string
 
     @IsString()
-    @MinLength(1)
+    @Length(1,15)
     phone!: string
 }

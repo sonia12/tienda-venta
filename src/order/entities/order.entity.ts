@@ -1,17 +1,37 @@
 import { Column, Entity, JoinColumn, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
-import { Timestamp } from "typeorm/driver/mongodb/bson.typings.js";
+
 import { Customer } from "../../customer/entities/customer.entity";
-import { join } from "path";
+
 import { Employee } from "../../employee/entities/employee.entity";
 import { OrderDetail } from "../../order_detail/entities/order_detail.entity";
+import e from "express";
 
-@Entity()
+export enum orders_status{
+    PENDING = 'pending',
+    COMPLETE = 'complete',
+    CANCEL = 'cancel'
+
+}
+
+@Entity('orders')
 export class Order {
-    @PrimaryGeneratedColumn({type:'int'})
-    id!: number 
+    @PrimaryGeneratedColumn('uuid')
+    id!: string 
 
     @Column({type:'timestamp', default: ()=>'current_timestamp'})
     date!: Date
+
+    @Column('uuid')
+    id_customer!: string
+
+    @Column('uuid')
+    id_employee!: string
+
+    @Column({type: 'numeric', precision:10, scale: 2, default: 0})
+    total_amount!:number
+
+    @Column({type:'enum', enum: orders_status, default: orders_status.PENDING})
+    status!: orders_status
 
    
     @ManyToOne(

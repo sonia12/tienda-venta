@@ -4,7 +4,5 @@ import { IsDate, IsOptional } from 'class-validator';
 
 export class UpdateEmployeeDto extends PartialType(CreateEmployeeDto) {
 
-  @IsOptional()
-  @IsDate()
-  hire_date?: Date;
+
 }

@@ -5,8 +5,8 @@ import { Order } from "../../order/entities/order.entity";
 @Entity()
 export class OrderDetail {
 
-    @PrimaryGeneratedColumn({type:'int'})
-    id!: number
+    @PrimaryGeneratedColumn('uuid')
+    id!: string
 
     @Column({type:'numeric', precision:10, scale:2})
     unit_price!: number
@@ -17,8 +17,14 @@ export class OrderDetail {
     @Column({type:'int'})
     quantity!: number 
 
-    @Column({type:'numeric', precision:5, scale:2})
+    @Column({type:'numeric', precision:5, scale:2, default:0})
     discount!: number
+    
+    @Column('uuid')
+    id_product!: string
+
+    @Column('uuid')  
+    id_order!: string
 
     @ManyToOne(
         ()=>Product,

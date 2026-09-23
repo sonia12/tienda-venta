@@ -3,19 +3,19 @@ import { Product } from "../../product/entities/product.entity";
 
 @Entity()
 export class Supplier {
-    @PrimaryGeneratedColumn({type:'int'})
-    id!: number
+    @PrimaryGeneratedColumn('uuid')
+    id!: string
 
-    @Column({type:'varchar', length:100, unique: true, nullable: false})
+    @Column({type:'varchar', length:100})
     name!: string
 
-    @Column({type:'varchar', length:200})
+    @Column({type:'varchar', length:200, nullable: true})
     address!: string
 
-    @Column({type:'varchar', length:50})
+    @Column({type:'varchar', length:50, nullable: true})
     city!: string
 
-    @Column({type:'varchar', length:15, nullable: false, unique: true})
+    @Column({type:'varchar', length:15, unique: true, nullable: true})
     phone!: string
 
     

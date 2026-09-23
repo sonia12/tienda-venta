@@ -7,6 +7,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from '../category/entities/category.entity';
 import { Supplier } from '../supplier/entities/supplier.entity';
 import { UpdateSupplierDto } from '../supplier/dto/update-supplier.dto';
+import { PaginationDto } from '../common/dtos/pagination.dto';
+import { isUUID } from 'validator';
 
 @Injectable()
 export class ProductService {
@@ -23,9 +25,9 @@ export class ProductService {
   ){}
 
   async create(createProductDto: CreateProductDto) {
-    createProductDto.name = createProductDto.name.toLocaleLowerCase()
-    try{
-      //encontrar category para crear el producto
+    
+    createProductDto.name = createProductDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    //encontrar category para crear el producto
       const category = await this.categoryRepository.findOneBy({id:createProductDto.id_category})
       if(!category){
         throw new NotFoundException('la categoria no se encontro')
@@ -36,57 +38,64 @@ export class ProductService {
       if(!supplier){
         throw new NotFoundException('el proveedor no se encontro')
       }
-      
+    try{
+    
       //crea product
       const createProduct = this.productRepository.create({...createProductDto, categoryProd:category, supplierProd:supplier})
-      return this.productRepository.save(createProduct)
+      return  await this.productRepository.save(createProduct)
 
     }catch(error){
       this.handleException(error, createProductDto.name)
     }
   }
 
-  findAll() {
+  findAll(paginationDto:PaginationDto) {
+    const {limit = 10, offset = 0}= paginationDto
     return this.productRepository.find({
+      take: limit,
+      skip: offset,
       relations:{categoryProd:true, orderProd:true}
     })
   }
 
-  async findOne(id: number) {
-    const product = await this.productRepository.findOne({
-      where: {id},
+  async findOne(term: string) {
+    let product:Product| null
+    if(isUUID(term)){
+      product = await this.productRepository.findOne({
+      where: {id:term},
       relations:{supplierProd: true, categoryProd: true}
     })
+    }else{
+      const normalizar = term.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
+      const queryBuilder = this.productRepository.createQueryBuilder('product')
+      product = await queryBuilder
+      .where('LOWER(product.name) = :name', {name:normalizar})
+      .leftJoinAndSelect('product.supplierProd', 'supplierProd')
+      .leftJoinAndSelect('product.categoryProd', 'categoryProd')
+      .getOne()
+    }
+    
     if(!product){
-      throw new NotFoundException(`el producto con id ${id} no se encontro`)
+      throw new NotFoundException(`no existe el product N° ${term}`)
     }
     return product;
   }
 
-  async findNameWithProd(name:string){
-    const productName = await this.productRepository.findOne({
-      where: {name:name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')},
-      relations:{categoryProd: true, supplierProd: true}
-    })
-    if(!productName){
-      throw new NotFoundException(`el producto con id ${name} no se encontro`)
+
+
+  async update(id: string, updateProductDto: UpdateProductDto) {
+
+    if(updateProductDto.name){
+      updateProductDto.name = updateProductDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
     }
-    return productName
-  }
 
-
-
-
-  async update(id: number, updateProductDto: UpdateProductDto) {
-    const produpdate = await this.productRepository.findOne({
-      where: {id}
+    const produpdate = await this.productRepository.preload({
+      id:id, ...updateProductDto
     })
     if(!produpdate){
-        throw new NotFoundException(`no existe el id ${id} del producto`)
+        throw new NotFoundException(`no existe el producto con id ${id}`)
       }
-    if(updateProductDto.name){
-      updateProductDto.name = updateProductDto.name.toLocaleLowerCase().trim()
-    }
+    
     if (updateProductDto.id_category) {
     const category = await this.categoryRepository.findOne({
       where: { id: updateProductDto.id_category },
@@ -116,8 +125,18 @@ export class ProductService {
     
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} product`;
+  async remove(id: string) {
+   const productRemove = await this.productRepository.findOne({
+      where: {id}
+    })
+    if(!productRemove){
+      throw new NotFoundException(`no existe el empleado con id ${id}`)
+    }
+    await this.productRepository.delete(id);
+
+    return {
+      message: 'employee eliminada correctamente'
+  };
   }
 
 

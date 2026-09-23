@@ -1,34 +1,41 @@
-import { IsInt, IsNumber, isNumber, IsPositive, IsString, MinLength } from "class-validator";
+import { IsInt, IsNotEmpty, IsNumber, isNumber, IsPositive, IsString, IsUUID, Length, Min, MinLength } from "class-validator";
 
 export class CreateProductDto {
 
     @IsString()
-    @MinLength(1)
+    @Length(1,100)
+    @IsNotEmpty()
     name!: string
 
     @IsNumber()
     @IsPositive()
+    @IsNotEmpty()
     unit_cost!: number
 
     @IsNumber()
     @IsPositive()
+    @IsNotEmpty()
     unit_price!: number
 
     @IsInt()
     @IsPositive()
+    @IsNotEmpty()
+    @Min(0)
     unit_stock!: number
 
     @IsInt()
     @IsPositive()
+    @IsNotEmpty()
+    @Min(1)
     quantity_per_unit!: number
 
-    @IsInt()
-    @IsPositive()
-    id_category!: number
+    @IsUUID() 
+    @IsNotEmpty()
+    id_category!: string
 
-    @IsInt()
-    @IsPositive()
-    id_supplier!: number
+    @IsUUID() 
+    @IsNotEmpty()
+    id_supplier!: string
 
 
 }

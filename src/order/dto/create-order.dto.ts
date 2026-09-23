@@ -1,12 +1,23 @@
-import { IsInt, IsPositive } from "class-validator";
+import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsPositive, IsUUID, Min } from "class-validator";
+import { orders_status } from '../entities/order.entity'
 
 export class CreateOrderDto {
     
-    @IsInt()
-    @IsPositive()
-    id_customer!: number
+    @IsUUID() 
+    @IsNotEmpty()
+    id_customer!: string
 
-    @IsInt()
+    @IsUUID() 
+    @IsNotEmpty()
+    id_employee!: string
+
+    @IsNumber() 
     @IsPositive()
-    id_employee!: number
+    @Min(0)
+    @IsNotEmpty()
+    total_amount!: number
+
+    @IsEnum(orders_status) 
+    @IsNotEmpty()
+    status!: orders_status
 }

@@ -8,6 +8,7 @@ import { OrderDetailModule } from './order_detail/order_detail.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { ProductModule } from './product/product.module';
 import { CategoryModule } from './category/category.module';
+import { CommonModule } from './common/common.module';
 
 
 @Module({
@@ -29,6 +30,7 @@ import { CategoryModule } from './category/category.module';
     SupplierModule,
     ProductModule,
     CategoryModule,
+    CommonModule,
     
   ],
   
