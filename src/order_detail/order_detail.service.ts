@@ -6,6 +6,8 @@ import { OrderDetail } from './entities/order_detail.entity';
 import { Repository } from 'typeorm';
 import { Product } from '../product/entities/product.entity';
 import { Order } from '../order/entities/order.entity';
+import { PaginationDto } from '../common/dtos/pagination.dto';
+import { isUUID } from 'validator';
 
 @Injectable()
 export class OrderDetailService {
@@ -37,29 +39,70 @@ export class OrderDetailService {
   }
     
 
-  findAll() {
+  findAll(paginationDto:PaginationDto) {
+    const {limit = 10, offset = 0}= paginationDto
     return this.OrderDetailRepository.find({
+      take: limit,
+      skip: offset,
       relations:{prodOrder_datail:true, orderOrder_detail:true}
     })
   }
 
-  async findOne(id: number) {
+  async findOne(id: string) {
     const orderDetail = await this.OrderDetailRepository.findOne({
       where: {id},
-      relations:{prodOrder_datail: true, orderOrder_detail: true}
+      relations:{prodOrder_datail: true, orderOrder_detail: true }
     })
     if(!orderDetail){
-      throw new NotFoundException(`no se encontro el id ${id} del detalle de la orden `)
-
+      throw new NotFoundException (`el order detail id $(id) no existe`)
     }
     return orderDetail
+    
+    
   } 
 
-  update(id: number, updateOrderDetailDto: UpdateOrderDetailDto) {
-    return `This action updates a #${id} orderDetail`;
+  async update(id: string, updateOrderDetailDto: UpdateOrderDetailDto) {
+    const orderDetailUpdate = await this.OrderDetailRepository.preload({
+      id:id, ...updateOrderDetailDto
+    })
+    if(!orderDetailUpdate){
+      throw new NotFoundException(`no se encontro el order detail con el id ${id}`)
+    }
+
+    if(updateOrderDetailDto.id_product){
+      const product = await this.productRepository.findOne({
+        where: {id:updateOrderDetailDto.id_product}
+      })
+      if(!product){
+        throw new NotFoundException(`No existe el product con el id ${updateOrderDetailDto.id_product}`);
+      }
+      orderDetailUpdate.prodOrder_datail = product
+    }
+
+    if(updateOrderDetailDto.id_order){
+      const order = await this.orderRepository.findOne({
+        where:{id:updateOrderDetailDto.id_order}
+      })
+      if(!order){
+        throw new NotFoundException(`No existe el order con el id ${updateOrderDetailDto.id_order}`)
+      }
+      orderDetailUpdate.orderOrder_detail = order
+
+    }
+    return await this.OrderDetailRepository.save(orderDetailUpdate)
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} orderDetail`;
+  async remove(id: string) {
+   const orderDetailRemove = await this.OrderDetailRepository.findOne({
+      where: {id}
+    })
+    if(!orderDetailRemove){
+      throw new NotFoundException(`no existe el orderDetail con id ${id}`)
+    }
+    await this.OrderDetailRepository.delete(id);
+
+    return {
+      message: 'orderDetail eliminada correctamente'
+  }; 
   }
 }

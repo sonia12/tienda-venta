@@ -6,26 +6,29 @@ import { OneToMany } from "typeorm/browser";
 
 @Entity()
 export class Product {
-    @PrimaryGeneratedColumn({type:'int'})
-    id!: number
+    @PrimaryGeneratedColumn('uuid')
+    id!: string
 
     @Column({type:'varchar', length:'100'})
     name!: string
 
-    @Column({type: 'numeric'})
+    @Column({type: 'numeric', precision:10, scale: 2})
     unit_cost!: number
 
-    @Column({type: 'numeric'})
+    @Column({type: 'numeric', precision:10, scale: 2,})
     unit_price!: number
 
-    @Column({type: 'int'})
+    @Column({type: 'int', default:0,})
     unit_stock!: number
 
-    @Column({type: 'int'})
+    @Column({type: 'int', default:1,})
     quantity_per_unit!: number
 
-    @Column()
-    id_category!: number;
+    @Column('uuid')
+    id_category!: string
+
+    @Column('uuid')
+    id_supplier!: string;
 
     @ManyToOne(
         ()=>Supplier,

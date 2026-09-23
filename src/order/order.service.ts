@@ -3,9 +3,10 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Order } from './entities/order.entity';
+import { Order} from './entities/order.entity';
 import { Customer } from '../customer/entities/customer.entity';
 import { Employee } from '../employee/entities/employee.entity';
+import { PaginationDto } from '../common/dtos/pagination.dto';
 
 @Injectable()
 export class OrderService {
@@ -23,6 +24,7 @@ export class OrderService {
   {}
 
   async create(createOrderDto: CreateOrderDto) {
+
     
       const customer = await this.customerRepository.findOneBy({id:createOrderDto.id_customer})
       if(!customer){
@@ -39,13 +41,16 @@ export class OrderService {
     
   }
 
-  findAll() {
+  findAll(paginationDto:PaginationDto) {
+    const {limit = 10, offset = 0}= paginationDto
     return this.orderRepository.find({
+      take: limit,
+      skip: offset,
       relations:{emplOrder:true, custOrder: true}
     })
   }
 
-  async findOne(id: number) {
+  async findOne(id: string) {
     const service = await this.orderRepository.findOne({
       where: {id},
       relations:{emplOrder: true, custOrder: true }
@@ -56,15 +61,14 @@ export class OrderService {
     return service
   }
 
-  async update(id: number, updateOrderDto: UpdateOrderDto) {
-    const orderUpdate = await this.orderRepository.findOne({
-      where: {id}
+  async update(id: string, updateOrderDto: UpdateOrderDto) {
+    const orderUpdate = await this.orderRepository.preload({
+      id:id, ...updateOrderDto
     })
     if(!orderUpdate){
       throw new NotFoundException(`no se encontro la orden con el id ${id}`)
     }
 
-    const updateData:Partial<Order>={}  // 
 
     if(updateOrderDto.id_customer){
       const customer = await this.customerRepository.findOne({
@@ -73,7 +77,7 @@ export class OrderService {
       if(!customer){
         throw new NotFoundException(`No existe el cliente con el id ${updateOrderDto.id_customer}`);
       }
-      updateData.custOrder = customer;  //
+      orderUpdate.custOrder = customer;  //
     }
     
     if(updateOrderDto.id_employee){
@@ -83,21 +87,29 @@ export class OrderService {
       if(!employee){
         throw new NotFoundException(`No existe el empleado con el id ${updateOrderDto.id_employee}`);
       }
-      updateData.emplOrder = employee; //
+      orderUpdate.emplOrder = employee; //
 
     }
 
-    await this.orderRepository.update(id, updateData)
-    return {
-      ...orderUpdate, ...updateOrderDto
+    return await this.orderRepository.save(orderUpdate)
 
-    }
+    
 
     
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} order`;
+  async remove(id:string) {
+     const orderRemove = await this.orderRepository.findOne({
+      where: {id}
+    })
+    if(!orderRemove){
+      throw new NotFoundException(`no existe el empleado con id ${id}`)
+    }
+    await this.orderRepository.delete(id);
+
+    return {
+      message: 'order eliminada correctamente'
+  };
   }
 
   

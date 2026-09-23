@@ -9,5 +9,5 @@ export class CreateCategoryDto {
     @IsOptional()
     @IsString()
     @MinLength(1)
-    description!: string
+    description?: string
 }

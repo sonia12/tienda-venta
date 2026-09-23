@@ -5,6 +5,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Customer } from './entities/customer.entity';
 import { Repository } from 'typeorm';
 import { noDeprecation } from 'process';
+import { PaginationDto } from '../common/dtos/pagination.dto';
+import { isUUID } from 'validator';
 
 @Injectable()
 export class CustomerService {
@@ -29,53 +31,62 @@ export class CustomerService {
     
   }
 
-  findAll() {
-    return this.customerRepository.find()
+  findAll(paginationDto:PaginationDto) {
+    const {limit = 10, offset = 0}= paginationDto
+    return this.customerRepository.find({
+      take: limit,
+      skip: offset
+    })
   }
 
-  async findOne(id: number) {
+  async findOne(term: string) {
+    let customer: Customer|null
+    if(isUUID(term)){
+      customer = await this.customerRepository.findOne({
+        where:{id:term},
+        relations:{orderCust: true}
+      })
+    }else{
+      const normalizar = term.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
+      const queryBuilder = this.customerRepository.createQueryBuilder('customer')
+      customer = await queryBuilder
+      .where('LOWER(customer.name) = :name', {
+        name:normalizar
+      
+      })
+      .leftJoinAndSelect('customer.orderCust', 'orderCust')
+      .getOne()
+    }
     
-    const customer = await this.customerRepository.findOne({
-      where: {id},
-      relations: {orderCust: true}
-    })
     if(!customer){
-      throw new NotFoundException(`no existe el cliente con el id ${id}`)
+      throw new NotFoundException(`no existe el cliente con el id ${term}`)
     }
     return customer
   }
 
-  async findByNameWithOrder(name:string){
+  
+
+
+  async update(id: string, updateCustomerDto: UpdateCustomerDto) {
     
-    const customerName = await this.customerRepository.findOne({
-      where: {name:name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '').replace(/[\u0300-\u036f]/g, '')},
-      relations: {orderCust:true}
-    })
-    if(!customerName){
-      throw new NotFoundException(`no existe el cliente con el nombre ${name}`)
-    }
-    return customerName
-  }
-
-
-
-  async update(id: number, updateCustomerDto: UpdateCustomerDto) {
-    const customerUpdate= await this.customerRepository.findOne({
-      where: {id}
-    })
-    if(!customerUpdate){
-      throw new NotFoundException(`el cliente con el id ${id} no se encontro`)
-    }
     if(updateCustomerDto.name){
       updateCustomerDto.name=updateCustomerDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '').replace(/[\u0300-\u036f]/g, '')
     }
     if(updateCustomerDto.phone){
-      updateCustomerDto.phone= updateCustomerDto.phone.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '').replace(/[\u0300-\u036f]/g, '')
+      updateCustomerDto.phone= updateCustomerDto.phone.trim()
+    }
+    const customerUpdate = await this.customerRepository.preload({
+      id:id,
+      ...updateCustomerDto
+    })
+    
+    if(!customerUpdate){
+      throw new NotFoundException(`el cliente con el id ${id} no se encontro`)
     }
 
     try{
-      await this.customerRepository.update(id,updateCustomerDto)
-      return {...customerUpdate, ...updateCustomerDto}
+      await this.customerRepository.save(customerUpdate)
+      return customerUpdate
 
     }catch(error){
       this.handleException(error,updateCustomerDto.name?? customerUpdate.name)
@@ -83,8 +94,18 @@ export class CustomerService {
     }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} customer`;
+  async remove(id: string) {
+    const customerRemove = await this.customerRepository.findOne({
+      where: {id}
+    })
+    if(!customerRemove){
+      throw new NotFoundException(`no existe la categoria con id ${id}`)
+    }
+    await this.customerRepository.delete(id);
+
+    return {
+      message: 'Categoría eliminada correctamente'
+  };
   }
 
   private handleException(error: any, customerName:string){

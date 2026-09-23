@@ -1,31 +1,29 @@
-import { timeStamp } from "console";
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from "typeorm";
 import { PrimaryGeneratedColumn } from "typeorm/browser";
-import { Timestamp } from "typeorm/driver/mongodb/bson.typings.js";
 import { Order } from "../../order/entities/order.entity";
 
 @Entity()
 export class Employee {
-    @PrimaryGeneratedColumn({type:'int'})
-    id!: number
+    @PrimaryGeneratedColumn('uuid')
+    id!: string
 
-    @Column({ type: 'varchar', length: 100, nullable:false })
+    @Column({ type: 'varchar', length: 100 })
     name!: string
 
     @Column({ type: 'varchar', length: 100 })
-    lastnaame!:string
+    lastname!:string
 
-    @Column({ type: 'varchar', length: 50, nullable:false })
-    title!: string
+    @Column({ type: 'varchar', length: 500, nullable: true })
+    title?: string
 
-    @Column({ type: 'timestamp', default:()=>'current_timestamp'})
-    hire_date!: Date
+    @Column({ type: 'date', default: ()=>'current_date'})
+    hire_date?: Date
 
-    @Column({ type: 'varchar', length: 100 })
-    adress!: string
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    address?: string
 
-    @Column({ type: 'varchar', length: 15, nullable:false })
-    phone!: string
+    @Column({ type: 'varchar', length: 15, unique: true, nullable: true })
+    phone?: string
 
     @ManyToOne(
         () => Employee, 

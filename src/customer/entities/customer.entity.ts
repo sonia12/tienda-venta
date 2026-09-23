@@ -4,13 +4,13 @@ import { Order } from "../../order/entities/order.entity"
 @Entity()
 export class Customer {
 
-    @PrimaryGeneratedColumn({type:'int'})
-    id!: number
+    @PrimaryGeneratedColumn('uuid')
+    id!: string
 
-    @Column({type:'varchar', length: 200, nullable:false})
+    @Column({type:'varchar', length: 200})
     name!: string
 
-    @Column({type:'varchar', length: 15})
+    @Column({type:'varchar', length: 15, unique: true, nullable: true})
     phone!: string
 
 

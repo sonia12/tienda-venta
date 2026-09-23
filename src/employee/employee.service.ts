@@ -4,6 +4,8 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Employee } from './entities/employee.entity';
 import { Repository } from 'typeorm';
+import { PaginationDto } from '../common/dtos/pagination.dto';
+import { isUUID } from 'validator';
 
 @Injectable()
 export class EmployeeService {
@@ -24,58 +26,66 @@ export class EmployeeService {
     }
   }
 
-  findAll() {
+  findAll(paginationDto:PaginationDto) {
+    const {limit = 10, offset = 0}= paginationDto
     return this.employeeRepository.find({
+      take: limit,
+      skip: offset,
       relations:{subordinates:true, ordEmployee:true}
     });
   }
 
-  async findOneById(id: number) {
-    const employee = await this.employeeRepository.findOne({
-      where: {id},
-      relations: {ordEmployee: true}
+  async findOne(term: string) {
+    let employee: Employee|null
+    if(isUUID(term)){
+      employee = await this.employeeRepository.findOne({
+      where: {id: term},
+      relations: {subordinates:true,ordEmployee: true}
     })
-    if(!employee){
-      throw new NotFoundException(`el empleado con el ${id} no se encontro`)
+
+    }else{
+      const normalizar = term.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
+      const queryBuilder = this.employeeRepository.createQueryBuilder('employee')
+      employee = await queryBuilder
+      .where('LOWER(employee.name) = :name', {name:normalizar})
+      .orWhere('employee.phone = :phone',{phone: term.trim()})
+      
+      .leftJoinAndSelect('employee.subordinates', 'subordinate')
+      .leftJoinAndSelect('employee.ordEmployee','ordEmployee')
+      .getOne()
     }
-
-    return employee ;
-  }
-
-   async findEmployeeName(name: string){
     
-    const employeeName = await this.employeeRepository.findOne({
-      where:{name:name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')},
-      relations:{ordEmployee: true}
-    })
-    if(!employeeName){
-      throw new NotFoundException(`no existe el empleado de name ${name}`)
+    if(!employee){
+      throw new NotFoundException(`no existe la empleado N° ${term}`)
     }
-    return employeeName
 
+    return employee;
   }
 
-  async update(id: number, updateEmployeeDto: UpdateEmployeeDto) {
-    const emploUpdate = await this.employeeRepository.findOne({
-      where: {id}
-    })
-    if(!emploUpdate){
-      throw new NotFoundException(`no se encontro el empleado con el id ${id} `)
-    }
+   
+  async update(id: string, updateEmployeeDto: UpdateEmployeeDto) {
+    
+    
     if(updateEmployeeDto.name){
       updateEmployeeDto.name = updateEmployeeDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
     }
-    if(updateEmployeeDto.lastnaame){
-      updateEmployeeDto.lastnaame = updateEmployeeDto.lastnaame.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
+    if(updateEmployeeDto.lastname){
+      updateEmployeeDto.lastname = updateEmployeeDto.lastname.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
     }
     if(updateEmployeeDto.title){
       updateEmployeeDto.title = updateEmployeeDto.title.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
     }
-    if(updateEmployeeDto.adress){
-      updateEmployeeDto.adress=updateEmployeeDto.adress.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
+    if(updateEmployeeDto.address){
+      updateEmployeeDto.address=updateEmployeeDto.address.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
     }
     if(updateEmployeeDto.phone){
-      updateEmployeeDto.phone=updateEmployeeDto.phone.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
+      updateEmployeeDto.phone=updateEmployeeDto.phone.trim()
+    }
+    const emploUpdate = await this.employeeRepository.preload({
+      id:id, ...updateEmployeeDto
+    })
+    if(!emploUpdate){
+      throw new NotFoundException(`no existe la employee con id ${id}`)
     }
     try{
       await this.employeeRepository.update(id,updateEmployeeDto)
@@ -86,8 +96,18 @@ export class EmployeeService {
     }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} employee`;
+  async remove(id: string) {
+    const employeeRemove = await this.employeeRepository.findOne({
+      where: {id}
+    })
+    if(!employeeRemove){
+      throw new NotFoundException(`no existe el empleado con id ${id}`)
+    }
+    await this.employeeRepository.delete(id);
+
+    return {
+      message: 'employee eliminada correctamente'
+  };
   }
 
   private handleException(error: any, employeeName:string){

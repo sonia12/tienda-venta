@@ -4,6 +4,8 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Supplier } from './entities/supplier.entity';
+import { PaginationDto } from '../common/dtos/pagination.dto';
+import { isUUID } from 'validator';
 
 @Injectable()
 export class SupplierService {
@@ -26,42 +28,49 @@ export class SupplierService {
   }
   
 
-  findAll() {
-    return this.supplierRepository.find()
+  findAll(paginationDto:PaginationDto) {
+    const {limit = 10, offset = 0}= paginationDto
+    return this.supplierRepository.find({
+      take: limit,
+      skip: offset
+    })
   }
 
-  async findOne(id: number) {
+  async findOne(term: string) {
 
-    const supplier = await this.supplierRepository.findOne({
-      where: {id},
-      relations: {ProdSupplier:true}
-    })
+    let supplier: Supplier|null;
+    
+    if(isUUID(term)){
+      supplier = await this.supplierRepository.findOne({
+        where:{id: term},
+        relations:{ProdSupplier: true}
+       })
+    
+      }else{
+        const normalizar = term.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
+        const queryBuilder = this.supplierRepository.createQueryBuilder('supplier')
+        supplier = await queryBuilder
+        .where('LOWER(supplier.name) = :name', {
+        name:normalizar
+          
+        })
+        .orWhere('supplier.phone = :phone', {
+          phone: term.trim()
+        })
+          .leftJoinAndSelect('supplier.ProdSupplier', 'prodSupplier')
+          .getOne()
+        }
     if(!supplier){
-      throw new NotFoundException(`el proveedor con ${id} no se encuentra`)
+      throw new NotFoundException(`no existe la categoria N° ${term}`)
     }
-    return supplier 
-  }
-
-  async supplierNameWithProduct(name:string){
-    const supplierName= await this.supplierRepository.findOne({
-      where:{name:name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')},
-      relations: {ProdSupplier: true}
-    })
-    if(!supplierName){
-      throw new NotFoundException(`el proveedor con ${name} no se encuentra`)
-    }
-    return supplierName
+    return supplier
   }
 
 
 
-  async update(id: number, updateSupplierDto: UpdateSupplierDto) {
-    const supplierUpdate = await this.supplierRepository.findOne({
-      where: {id}
-    })
-    if(!supplierUpdate){
-      throw new NotFoundException (`no se encontro el id ${id} del proveedor`)
-    }
+  async update(id: string, updateSupplierDto: UpdateSupplierDto) {
+    
+    
     if(updateSupplierDto.name){
       updateSupplierDto.name = updateSupplierDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
     }
@@ -73,7 +82,14 @@ export class SupplierService {
 
     }
     if(updateSupplierDto.phone){
-      updateSupplierDto.phone = updateSupplierDto.phone.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
+      updateSupplierDto.phone = updateSupplierDto.phone.trim()
+    }
+    const supplierUpdate = await this.supplierRepository.preload({
+      id:id,
+      ...updateSupplierDto
+    })
+    if(!supplierUpdate){
+      throw new NotFoundException (`no existe la categoria con id ${id}`)
     }
     try{
       await this.supplierRepository.update(id,updateSupplierDto)
@@ -85,8 +101,18 @@ export class SupplierService {
 
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} supplier`;
+  async remove(id: string) {
+    const supplierRemove = await this.supplierRepository.findOne({
+      where: {id}
+    })
+    if(!supplierRemove){
+      throw new NotFoundException(`no existe la categoria con id ${id}`)
+    }
+    await this.supplierRepository.delete(id);
+
+    return {
+      message: 'supplier eliminada correctamente'
+  };
   }
 
   private handleException(error: any, supplierName:string){

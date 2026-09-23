@@ -9,5 +9,5 @@ export class CreateCustomerDto {
     @IsString()
     @MinLength(1)
     @IsOptional()
-    phone!: string
+    phone?: string
 }
