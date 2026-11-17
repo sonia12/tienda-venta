@@ -1,33 +1,23 @@
-import { IsInt, IsNotEmpty, IsNumber, IsPositive, IsUUID, Min } from "class-validator"
+import { Transform, Type } from "class-transformer"
+import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsUUID, Min } from "class-validator"
 
 export class CreateOrderDetailDto {
     
-    @IsNumber()
-    @IsPositive()
-    @IsNotEmpty()
-    unit_price!:number
 
-    @IsNumber()
-    @IsPositive()
-    @IsNotEmpty()
-    unit_cost!: number
-
-    @IsInt()
-    @IsPositive()
-    @Min(1)
-    @IsNotEmpty()
+    @IsOptional()
+    @Transform(({ value }) => (value === undefined || value === null || value === '' ? 1 : value)) 
+    @Type(() => Number)
+    @IsInt({ message: 'La cantidad debe ser un número entero' })
+    @Min(1, { message: 'La cantidad mínima debe ser 1' })
     quantity!: number
     
     @IsNumber()
-    @Min(0)
-    @IsNotEmpty()
+    @IsOptional()
     discount?: number
 
     @IsUUID()
     @IsNotEmpty()
     id_product!: string
 
-    @IsUUID()
-    @IsNotEmpty()
-    id_order!: string
+    
 }

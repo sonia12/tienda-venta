@@ -6,6 +6,10 @@ export class CreateSupplierDto {
     @IsNotEmpty()
     name!: string
 
+    @IsString()
+    @IsNotEmpty()
+    nit!: string;
+
     @IsOptional()
     @IsString()
     @Length(1,200)

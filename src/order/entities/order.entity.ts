@@ -2,9 +2,10 @@ import { Column, Entity, JoinColumn, ManyToMany, ManyToOne, OneToMany, PrimaryGe
 
 import { Customer } from "../../customer/entities/customer.entity";
 
-import { Employee } from "../../employee/entities/employee.entity";
+
 import { OrderDetail } from "../../order_detail/entities/order_detail.entity";
 import e from "express";
+import { User } from "../../auth/entities/user.entity";
 
 export enum orders_status{
     PENDING = 'pending',
@@ -21,8 +22,8 @@ export class Order {
     @Column({type:'timestamp', default: ()=>'current_timestamp'})
     date!: Date
 
-    @Column('uuid')
-    id_customer!: string
+    @Column('uuid', {nullable: true})
+    id_customer!: string | null
 
     @Column('uuid')
     id_employee!: string
@@ -36,26 +37,29 @@ export class Order {
    
     @ManyToOne(
         ()=>Customer,
-        (customer)=>customer.orderCust,
-        {cascade: true}
+        (customer)=>customer.customerOrders,
+        {cascade: true, nullable: true}
     )
     @JoinColumn({name:'id_customer'})
-    custOrder!: Customer
+    custOrder!: Customer | null
 
 
-    @ManyToOne(
-        ()=>Employee,
-        (employee)=>employee.ordEmployee,
-        {cascade:true}
-    )
-    @JoinColumn({name:'id_employee'})
-    emplOrder!:Employee
+   
 
     
     @OneToMany(
         ()=>OrderDetail,
         (orderdetail)=>orderdetail.orderOrder_detail
     )
-    detailOrder!: OrderDetail
+    detailOrder!: OrderDetail []
+
+    
+    @ManyToOne(
+            ()=>User,
+            (user)=>user.order,
+           
+        )
+    @JoinColumn({ name: 'id_employee' })
+    user!:User
 
 }

@@ -3,37 +3,39 @@ import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { PaginationDto } from '../common/dtos/pagination.dto';
+import { Auth } from '../auth/decorators/auth.decorator';
+import { ValidRoles } from '../auth/enums/valid-roles.enum';
+import { GetUser } from '../auth/decorators/get-user-decorator';
+import { User } from '../auth/entities/user.entity';
 
 @Controller('customer')
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Post()
-  create(@Body() createCustomerDto: CreateCustomerDto) {
-    return this.customerService.create(createCustomerDto);
+  @Auth(ValidRoles.Employee)
+  create(@Body() createCustomerDto: CreateCustomerDto, @GetUser() user:User) {
+    return this.customerService.create(createCustomerDto, user);
   }
 
   @Get()
-  findAll(@Query() paginationDto:PaginationDto) {
-    return this.customerService.findAll(paginationDto);
+  @Auth(ValidRoles.Employee, ValidRoles.Admin, ValidRoles.Owner)
+  findAll(@Query() paginationDto:PaginationDto, @GetUser() user: User) {
+    return this.customerService.findAll(paginationDto, user);
   }
 
   @Get(':term')
-  findOne(@Param('term') term: string) {
-    return this.customerService.findOne(term);
+  @Auth(ValidRoles.Admin, ValidRoles.Owner, ValidRoles.Employee)
+  findOne(@Param('term') term: string, @GetUser() user:User) {
+    return this.customerService.findOne(term, user);
   }
-
-  
-
 
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
-    return this.customerService.update(id, updateCustomerDto);
+  @Auth(ValidRoles.Employee)
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() updateCustomerDto: UpdateCustomerDto, @GetUser() user:User) {
+    return this.customerService.update(id, updateCustomerDto, user);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.customerService.remove(id);
-  }
+ 
 }

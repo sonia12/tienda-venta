@@ -1,37 +1,56 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PaginationDto } from '../common/dtos/pagination.dto';
+import { Auth } from '../auth/decorators/auth.decorator';
+import { ValidRoles } from '../auth/enums/valid-roles.enum';
+import { GetUser } from '../auth/decorators/get-user-decorator';
+import { OptionAuthGuard } from '../auth/guards/optionalAuth.guard';
+import { User } from '../auth/entities/user.entity';
+import { IncrementStockDto } from './dto/increment-stock.dto';
 
 @Controller('product')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Post()
-  create(@Body() createProductDto: CreateProductDto) {
-    return this.productService.create(createProductDto);
+  @Auth(ValidRoles.Admin, ValidRoles.Owner)
+  create(@Body() createProductDto: CreateProductDto, @GetUser() user:User) {
+    return this.productService.create(createProductDto, user);
   }
 
+
+
   @Get()
-  findAll(@Query() paginationDto:PaginationDto) {
-    return this.productService.findAll(paginationDto);
+  @UseGuards(OptionAuthGuard)  // aqui uso el guard que me cree 
+  findAll(@Query() paginationDto:PaginationDto, @GetUser() user: User) { // getUser, captura al user logueado
+    return this.productService.findAll(paginationDto, user); //isAdmin parametro aumentado
   }
 
   @Get(':term')
-  findOne(@Param('term') term: string) {
-    return this.productService.findOne(term);
+  @UseGuards(OptionAuthGuard) 
+  findOne(@Param('term') term: string, @GetUser() user: User) {
+
+    return this.productService.findOne(term, user);
   }
 
  
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productService.update(id, updateProductDto);
+  @Auth(ValidRoles.Admin, ValidRoles.Owner)
+  update(@Param('id',ParseUUIDPipe) id: string, @Body() updateProductDto: UpdateProductDto, @GetUser() user:User) {
+    return this.productService.update(id, updateProductDto, user);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.productService.remove(id);
-  }
+  @Patch(':id/incrementStock')
+  @Auth(ValidRoles.Admin)
+  incrementStock(
+  @Param('id', ParseUUIDPipe) id: string,
+  @Body() incrementStockDto: IncrementStockDto,
+  ) {
+  return this.productService.incrementStock(id, incrementStockDto);
+}
+
+ 
 }

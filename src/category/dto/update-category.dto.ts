@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateCategoryDto } from './create-category.dto';
-import { IsInt, IsNumber, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
 
 export class UpdateCategoryDto {
         @IsString()
@@ -12,4 +12,8 @@ export class UpdateCategoryDto {
         @MinLength(1)
         @IsOptional()
         description?: string 
+        
+        @IsBoolean()
+        @IsOptional()
+        isActive?: boolean;
 }
