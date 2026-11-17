@@ -1,13 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateOrderDetailDto } from './dto/create-order_detail.dto';
 import { UpdateOrderDetailDto } from './dto/update-order_detail.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OrderDetail } from './entities/order_detail.entity';
 import { Repository } from 'typeorm';
 import { Product } from '../product/entities/product.entity';
-import { Order } from '../order/entities/order.entity';
+import { Order, orders_status } from '../order/entities/order.entity';
 import { PaginationDto } from '../common/dtos/pagination.dto';
 import { isUUID } from 'validator';
+import { User } from '../auth/entities/user.entity';
 
 @Injectable()
 export class OrderDetailService {
@@ -22,44 +23,87 @@ export class OrderDetailService {
     @InjectRepository(OrderDetail)
     private OrderDetailRepository:Repository<OrderDetail>
   ){}
- 
 
-  async create(createOrderDetailDto: CreateOrderDetailDto) {
-    const order = await this.orderRepository.findOneBy({id:createOrderDetailDto.id_order})
-
+  //calcular total
+  
+ private async TotalAmount(id_order: string) {
+    const order = await this.orderRepository.findOne({
+      where: { id: id_order },
+      relations:{detailOrder: true},
+    });
     if(!order){
-    throw new NotFoundException('no se encontro el id de la orden')
+      throw new NotFoundException(`No se encontró la orden con el id ${id_order}`)
     }
+      
+       let total = 0
+    
+    if(order.detailOrder && Array.isArray(order.detailOrder)){
+      for (const item of order.detailOrder) {
+        const discount = item.discount || 0;
+        const subtotal = (item.unit_price * item.quantity) - discount;
+        total += subtotal;
+      }
+    }
+    await this.orderRepository.update(id_order, { total_amount: total })
+
+  }
+
+  async create(orderId:string, createOrderDetailDto: CreateOrderDetailDto ) {
+
+    // buscamos el producto
     const product = await this.productRepository.findOneBy({id:createOrderDetailDto.id_product})
     if(!product){
       throw new NotFoundException('no se encontro el id del producto')
     }
-    const createOrderDetail = this.OrderDetailRepository.create({...createOrderDetailDto, prodOrder_datail:product, orderOrder_detail:order})
-    return this.OrderDetailRepository.save(createOrderDetail)
-  }
-    
 
-  findAll(paginationDto:PaginationDto) {
-    const {limit = 10, offset = 0}= paginationDto
-    return this.OrderDetailRepository.find({
-      take: limit,
-      skip: offset,
-      relations:{prodOrder_datail:true, orderOrder_detail:true}
-    })
-  }
+    // buscamos la orden
+    const order = await this.orderRepository.findOneBy({id: orderId})
 
-  async findOne(id: string) {
-    const orderDetail = await this.OrderDetailRepository.findOne({
-      where: {id},
-      relations:{prodOrder_datail: true, orderOrder_detail: true }
-    })
-    if(!orderDetail){
-      throw new NotFoundException (`el order detail id $(id) no existe`)
+    if(!order){
+    throw new NotFoundException('no se encontro el id de la orden')
     }
-    return orderDetail
+
+    // validamos que la orden este en pending
+    if(order.status ===orders_status.COMPLETE){
+      throw new BadRequestException('no se puede añadir mas detalles orden completada')
+    }
+
+    if(order.status ===orders_status.CANCEL){
+      throw new BadRequestException('no se puede añadir mas detalles orden cancelada')
+    }
+
+
+    // validamos la cantidad y el stock
+    const  quantity  = createOrderDetailDto.quantity ?? 1
+
+    if (product.unit_stock < quantity) {
+      throw new BadRequestException(`Stock insuficiente. Stock actual disponible: ${product.unit_stock}`);
+    }
+
+    const createOrderDetail = this.OrderDetailRepository.create({
+      quantity,
+      unit_price: product.unit_price, // <-- Congela el precio
+      unit_cost: product.unit_cost,   // <-- Congela el costo
+      id_product: createOrderDetailDto.id_product, 
+      id_order: orderId,
+    })
+     const orderDetail = await this.OrderDetailRepository.save(createOrderDetail)
+
+     await this.productRepository.decrement(
+      { id: product.id },     // Buscamos el producto por su id
+      'unit_stock',           // Columna que queremos disminuir
+      quantity                // Cantidad que se va a restar
+    );
+
+     // total orden
+     await this.TotalAmount(orderId)
+
+     const { unit_cost, prodOrder_datail, orderOrder_detail, ...employeeResponse } = orderDetail as any
+     return employeeResponse
+  }
     
-    
-  } 
+
+  
 
   async update(id: string, updateOrderDetailDto: UpdateOrderDetailDto) {
     const orderDetailUpdate = await this.OrderDetailRepository.preload({
@@ -89,7 +133,14 @@ export class OrderDetailService {
       orderDetailUpdate.orderOrder_detail = order
 
     }
-    return await this.OrderDetailRepository.save(orderDetailUpdate)
+    const updateDetail= await this.OrderDetailRepository.save(orderDetailUpdate)
+
+    if(updateDetail.id_order){
+      await this.TotalAmount(updateDetail.id_order)
+    }
+
+
+    return updateDetail
   }
 
   async remove(id: string) {
@@ -99,10 +150,39 @@ export class OrderDetailService {
     if(!orderDetailRemove){
       throw new NotFoundException(`no existe el orderDetail con id ${id}`)
     }
-    await this.OrderDetailRepository.delete(id);
+
+    const orderId = orderDetailRemove.id_order  
+    const order = await this.orderRepository.findOneBy({ id: orderId });
+
+    if (!order) {
+      throw new NotFoundException('No se encontró la orden asociada a este detalle');
+    }
+
+    if (order.status === orders_status.COMPLETE) {
+      throw new BadRequestException('No se pueden eliminar detalles de una orden que ya ha sido completada.');
+    }
+
+    if (order.status === orders_status.CANCEL) {
+      throw new BadRequestException('No se pueden eliminar detalles de una orden que ya ha sido cancelada.');
+    }
+
+    //order detail que se elimina se incrementa al stock
+    await this.productRepository.increment(
+      { id: orderDetailRemove.id_product },
+      'unit_stock',
+      orderDetailRemove.quantity
+    );
+    await this.OrderDetailRepository.delete(id)
+
+    if(orderId){
+      await this.TotalAmount(orderId)
+    }
+    
+    
 
     return {
       message: 'orderDetail eliminada correctamente'
   }; 
-  }
+}
+
 }

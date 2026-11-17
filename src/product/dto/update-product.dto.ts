@@ -1,9 +1,12 @@
-import { PartialType } from '@nestjs/mapped-types';
+import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { CreateProductDto } from './create-product.dto';
-import { IsInt, IsNumber, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
 
-export class UpdateProductDto extends PartialType(CreateProductDto) {
-      
-
+export class UpdateProductDto extends PartialType(
+    OmitType(CreateProductDto,['unit_stock'] )) {
+    
+        @IsBoolean()
+        @IsOptional()
+        isActive?: boolean;
     
 }

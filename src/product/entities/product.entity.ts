@@ -3,6 +3,7 @@ import { Supplier } from "../../supplier/entities/supplier.entity";
 import { Category } from "../../category/entities/category.entity";
 import { OrderDetail } from "../../order_detail/entities/order_detail.entity";
 import { OneToMany } from "typeorm/browser";
+import { User } from "../../auth/entities/user.entity";
 
 @Entity()
 export class Product {
@@ -24,6 +25,9 @@ export class Product {
     @Column({type: 'int', default:1,})
     quantity_per_unit!: number
 
+    @Column({ type: 'bool', default: true })
+    isActive!: boolean;
+
     @Column('uuid')
     id_category!: string
 
@@ -42,7 +46,7 @@ export class Product {
 
     @ManyToOne(
         ()=>Category,
-        (category)=>category.prodCategory,
+        (category)=>category.products,
         {cascade: true}
     )
     @JoinColumn({name:'id_category'})
@@ -54,5 +58,12 @@ export class Product {
         (OrderDetail)=>OrderDetail.prodOrder_datail
     )
     orderProd!:OrderDetail
+
+    @ManyToOne(
+            ()=>User,
+            (user)=>user.product,
+           
+        )
+        user!:User
 
 }

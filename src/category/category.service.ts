@@ -7,6 +7,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { json } from 'stream/consumers';
 import { PaginationDto } from '../common/dtos/pagination.dto';
 import { isULID, isUUID } from 'validator';
+import { User } from '../auth/entities/user.entity';
+
 
 @Injectable()
 export class CategoryService {
@@ -19,12 +21,24 @@ export class CategoryService {
   ){}
 
 
-  async create(createCategoryDto: CreateCategoryDto) {
+  async create(createCategoryDto: CreateCategoryDto, user:User) {
     createCategoryDto.name= createCategoryDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
 
     try {
-    const createCategory= this.categoryRepository.create(createCategoryDto)
-    return await this.categoryRepository.save(createCategory)
+    
+      const createCategory= this.categoryRepository.create({
+      ...createCategoryDto, user})
+      const savedCategory = await this.categoryRepository.save(createCategory)
+      return {
+        mesaage: "la categoria se creo con exito",
+        id: savedCategory.id,
+        name: savedCategory.name,
+        description: savedCategory.description,
+        by_user:{
+          id: user.id,
+          name: user.fullname
+        }
+      }
     }catch (error){
       this.hadleException(error, createCategoryDto.name)
     }
@@ -32,7 +46,7 @@ export class CategoryService {
   }
 
 
-  findAll(paginationDto:PaginationDto) {
+  findAll(paginationDto:PaginationDto ) {
     const {limit = 10, offset = 0}= paginationDto
     return this.categoryRepository.find({
       take: limit,
@@ -40,14 +54,14 @@ export class CategoryService {
     })
   }
 
-  async findOne(term: string) {
+  async findOne(term: string, isAdmin: boolean) {
 
-    let category: Category|null;
+    let category: any;
 
     if(isUUID(term)){
       category = await this.categoryRepository.findOne({
         where:{id: term},
-        relations:{prodCategory: true}
+        relations:{products: true}
       })
 
     }else{
@@ -55,13 +69,27 @@ export class CategoryService {
       const queryBuilder = this.categoryRepository.createQueryBuilder('category')
       category = await queryBuilder
       .where('LOWER(category.name) = :name', {name:normalizar})
-      .leftJoinAndSelect('category.prodCategory', 'prodCategory')
+      .leftJoinAndSelect('category.products', 'products')
       .getOne()
     }
     
     if(!category){
       throw new NotFoundException(`no existe la categoria N° ${term}`)
     }
+
+    if (!isAdmin) {
+      if (category.products && Array.isArray(category.products)) {
+            category.products = category.products.map(product => {
+                const { unit_cost, id_category,id_supplier, ...productWithoutCost } = product;
+                return productWithoutCost;
+            });
+        }
+
+      
+    const { unit_cost, ...productWithoutCost } = category ;
+    return productWithoutCost;
+    }
+
     return category
   }
 
@@ -69,7 +97,7 @@ export class CategoryService {
 
  
 
-  async update(id: string, updateCategoryDto: UpdateCategoryDto) {
+  async update(id: string, updateCategoryDto: UpdateCategoryDto, user:User) {
     if(updateCategoryDto.name){
       updateCategoryDto.name = updateCategoryDto.name.toLocaleLowerCase().trim()
     }
@@ -78,36 +106,30 @@ export class CategoryService {
     }
     const categoryUpdate = await this.categoryRepository.preload({
       id:id,
-      ...updateCategoryDto
+      ...updateCategoryDto, user
     })
     if(!categoryUpdate){
       throw new NotFoundException(`no existe la categoria con id ${id}`)
     }
     
     try{
-    await this.categoryRepository.save(categoryUpdate)
-    return categoryUpdate
+    const updateCategory = await this.categoryRepository.save(categoryUpdate)
+    return {
+      message: "Se actualizo la categoria con exito",
+      id: updateCategory.id,
+      name: updateCategory.name,
+      description: updateCategory.description,
+      isActive: updateCategory.isActive,
+      by_user:{
+        id:user.id,
+        name: user.fullname
+      }
+    }
 
     }catch(error){
       this.hadleException(error, updateCategoryDto.name?? categoryUpdate.name)
 
     }
-  }
-
-
-
-  async remove(id: string) {
-    const categoryRemove = await this.categoryRepository.findOne({
-      where: {id}
-    })
-    if(!categoryRemove){
-      throw new NotFoundException(`no existe la categoria con id ${id}`)
-    }
-    await this.categoryRepository.delete(id);
-
-    return {
-      message: 'Categoría eliminada correctamente'
-  };
   }
 
 

@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsNumber, isNumber, IsPositive, IsString, IsUUID, Length, Min, MinLength } from "class-validator";
+import { IsInt, IsNotEmpty, IsNumber, isNumber, IsOptional, IsPositive, IsString, IsUUID, Length, Min, MinLength } from "class-validator";
 
 export class CreateProductDto {
 
@@ -25,9 +25,10 @@ export class CreateProductDto {
 
     @IsInt()
     @IsPositive()
-    @IsNotEmpty()
+    @IsOptional()
     @Min(1)
-    quantity_per_unit!: number
+    quantity_per_unit?: number
+    
 
     @IsUUID() 
     @IsNotEmpty()

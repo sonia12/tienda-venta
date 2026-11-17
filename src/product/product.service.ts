@@ -9,6 +9,9 @@ import { Supplier } from '../supplier/entities/supplier.entity';
 import { UpdateSupplierDto } from '../supplier/dto/update-supplier.dto';
 import { PaginationDto } from '../common/dtos/pagination.dto';
 import { isUUID } from 'validator';
+import { User } from '../auth/entities/user.entity';
+import { IncrementStockDto } from './dto/increment-stock.dto';
+import { ValidRoles } from '../auth/enums/valid-roles.enum';
 
 @Injectable()
 export class ProductService {
@@ -24,7 +27,7 @@ export class ProductService {
     private supplierRepository: Repository<Supplier>
   ){}
 
-  async create(createProductDto: CreateProductDto) {
+  async create(createProductDto: CreateProductDto, user:User) {
     
     createProductDto.name = createProductDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     //encontrar category para crear el producto
@@ -39,58 +42,149 @@ export class ProductService {
         throw new NotFoundException('el proveedor no se encontro')
       }
     try{
+        // extraer valores del usaurio y calcular
+      const initialStock = createProductDto.unit_stock || 0;
+      const quantityPerUnit = createProductDto.quantity_per_unit || 1;
+      const calculatedTotalStock = initialStock * quantityPerUnit;
     
       //crea product
-      const createProduct = this.productRepository.create({...createProductDto, categoryProd:category, supplierProd:supplier})
-      return  await this.productRepository.save(createProduct)
+      const createProduct = this.productRepository.create({
+        
+        ...createProductDto, 
+        unit_stock: calculatedTotalStock,
+        categoryProd:category, 
+        supplierProd:supplier, user})
+      
+        const savedProd = await this.productRepository.save(createProduct)
+        return  {
+          message: "se creo el producto con exito",
+          id: savedProd.id,
+          name: savedProd.name,
+          unit_cost: savedProd.unit_cost,
+          unit_price: savedProd.unit_price,
+          quantityPerUnit: savedProd.quantity_per_unit,
+          id_category: savedProd.id_category,
+          id_supplier: savedProd.id_supplier,
+          created_By_user:{ 
+            id: user.id,
+            email: user.email,
+            name: user.fullname
+          }
+
+
+        }
 
     }catch(error){
       this.handleException(error, createProductDto.name)
     }
   }
 
-  findAll(paginationDto:PaginationDto) {
+  
+
+  async findAll(paginationDto:PaginationDto, user: User) {
     const {limit = 10, offset = 0}= paginationDto
-    return this.productRepository.find({
+
+    const products = await this.productRepository.find({
       take: limit,
       skip: offset,
-      relations:{categoryProd:true, orderProd:true}
+      relations: {
+        user: true
+      }
+      
     })
+    if (!user) {
+    return products.map(product => ({
+      id: product.id,
+      name: product.name,
+      unit_price: product.unit_price,
+      unit_stock: product.unit_stock,
+      quantity_per_unit: product.quantity_per_unit,
+    }));
+  }
+    if (user.roles.includes(ValidRoles.Employee) && !user.roles.includes(ValidRoles.Admin) && !user.roles.includes(ValidRoles.Owner)) {
+    return products.map(product => {
+      const { user: _, unit_cost, ...productData } = product as any; // Omitimos el objeto user creador
+      return productData;
+    });
+  }
+    return products.map(product => {
+    const {user, ...productData} = product as any
+    return {
+        ...productData,
+      registeredBy: {
+        id: user.id,
+        name: user.fullname,
+
+    }
+  }
+  
+  });
+
+    
   }
 
-  async findOne(term: string) {
+  async findOne(term: string, user : User) {
     let product:Product| null
     if(isUUID(term)){
       product = await this.productRepository.findOne({
       where: {id:term},
-      relations:{supplierProd: true, categoryProd: true}
+      relations: { user:true}
+      
     })
     }else{
       const normalizar = term.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
       const queryBuilder = this.productRepository.createQueryBuilder('product')
       product = await queryBuilder
+
       .where('LOWER(product.name) = :name', {name:normalizar})
-      .leftJoinAndSelect('product.supplierProd', 'supplierProd')
-      .leftJoinAndSelect('product.categoryProd', 'categoryProd')
+      .leftJoinAndSelect('product.user', 'user')
       .getOne()
     }
     
     if(!product){
       throw new NotFoundException(`no existe el product N° ${term}`)
     }
-    return product;
+
+    if (!user) {
+    return {
+      id: product.id,
+      name: product.name,
+      unit_price: product.unit_price,
+      unit_stock: product.unit_stock,
+      quantity_per_unit: product.quantity_per_unit,
+    }
+    }
+    if(user.roles.includes(ValidRoles.Employee) && !user.roles.includes(ValidRoles.Admin) && !user.roles.includes(ValidRoles.Owner)){
+      
+      const { user: _, unit_cost, ...productData } = product as any; // Omitimos el objeto user creador
+      return productData;
+  }
+  
+    const {user: creatorUser, ...productData} = product as any
+    return {
+        ...productData,
+      registeredBy: {
+        id: creatorUser.id,
+        name: creatorUser.fullname,
+
+    
+  }
+  
+  };
+
+
   }
 
 
 
-  async update(id: string, updateProductDto: UpdateProductDto) {
+  async update(id: string, updateProductDto: UpdateProductDto, user:User) {
 
     if(updateProductDto.name){
       updateProductDto.name = updateProductDto.name.toLocaleLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u0300-\u036f]/g, '')
     }
 
     const produpdate = await this.productRepository.preload({
-      id:id, ...updateProductDto
+      id:id, ...updateProductDto, user
     })
     if(!produpdate){
         throw new NotFoundException(`no existe el producto con id ${id}`)
@@ -114,9 +208,16 @@ export class ProductService {
 
     }
     try{
-      await this.productRepository.update(id, updateProductDto)
+      const updatedProduct = await this.productRepository.save(produpdate)
+      
+      const {user, ...productData }= updatedProduct as any
       return {
-        ...produpdate, ...updateProductDto
+        message: "se actualizo con exito los datos del producto",
+        ...productData, 
+        registeredBy:{
+          id:user.id,
+          name: user.fullname
+        }
       }
     }catch(error){
       this.handleException(error,updateProductDto.name?? produpdate.name)
@@ -124,20 +225,26 @@ export class ProductService {
     }
     
   }
-
-  async remove(id: string) {
-   const productRemove = await this.productRepository.findOne({
-      where: {id}
-    })
-    if(!productRemove){
-      throw new NotFoundException(`no existe el empleado con id ${id}`)
-    }
-    await this.productRepository.delete(id);
-
-    return {
-      message: 'employee eliminada correctamente'
-  };
+  async incrementStock(id: string, incrementStock:IncrementStockDto){
+    const product = await this.productRepository.findOneBy({ id });
+    if (!product) {
+    throw new NotFoundException(`No se encontró el producto con el ID: ${id}`);
   }
+     
+      // multiplica si hay un per unit si no defecto 1 
+    const multiplier = incrementStock.quantity_per_unit_add ||1
+    const totalToAdd = incrementStock.stockToAdd * multiplier
+
+    await this.productRepository.increment(
+    { id },
+    'unit_stock',
+    totalToAdd
+  )
+  return await this.productRepository.findOneBy({ id });
+
+  }
+
+  
 
 
   private handleException(error: any, productName:string){
