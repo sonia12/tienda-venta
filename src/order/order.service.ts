@@ -172,7 +172,7 @@ export class OrderService {
     // 1. Buscamos la orden con sus relaciones dentro de la transacción
     const order = await manager.findOne(Order, {
       where: { id },
-      relations: { detailOrder: { prodOrder_datail: true }, user: true },
+      //relations: { detailOrder: { prodOrder_datail: true }, user: true },
     });
 
     if (!order) {

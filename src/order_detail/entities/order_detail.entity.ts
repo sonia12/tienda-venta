@@ -29,7 +29,7 @@ export class OrderDetail {
     @ManyToOne(
         ()=>Product,
         (product)=>product.orderProd,
-        {cascade: true}
+        
     )
     @JoinColumn({name:'id_product'})
     prodOrder_datail!: Product
@@ -38,7 +38,7 @@ export class OrderDetail {
     @ManyToOne(
         ()=>Order,
         (order)=>order.detailOrder,
-        {cascade: true}
+        
     )
     @JoinColumn({name:'id_order'})
     orderOrder_detail!:Order
