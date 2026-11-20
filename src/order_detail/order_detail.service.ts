@@ -24,6 +24,38 @@ export class OrderDetailService {
     private OrderDetailRepository:Repository<OrderDetail>
   ){}
 
+  // calcula stock
+  private async adjustProductStock(productId: string, quantityDelta: number) {
+    if (quantityDelta === 0) {
+      return;
+    }
+
+    const product = await this.productRepository.findOneBy({ id: productId });
+    if (!product) {
+      throw new NotFoundException(`No se encontró el producto con el id ${productId}`);
+    }
+
+    if (quantityDelta > 0) {
+      if (product.unit_stock < quantityDelta) {
+        throw new BadRequestException(
+          `Stock insuficiente. Stock actual disponible: ${product.unit_stock}`,
+        );
+      }
+
+      await this.productRepository.decrement(
+        { id: productId },
+        'unit_stock',
+        quantityDelta,
+      );
+    } else {
+      await this.productRepository.increment(
+        { id: productId },
+        'unit_stock',
+        Math.abs(quantityDelta),
+      );
+    }
+  }
+
   //calcular total
   
  private async TotalAmount(id_order: string) {
@@ -76,9 +108,7 @@ export class OrderDetailService {
     // validamos la cantidad y el stock
     const  quantity  = createOrderDetailDto.quantity ?? 1
 
-    if (product.unit_stock < quantity) {
-      throw new BadRequestException(`Stock insuficiente. Stock actual disponible: ${product.unit_stock}`);
-    }
+    await this.adjustProductStock(product.id, quantity);
 
     const createOrderDetail = this.OrderDetailRepository.create({
       quantity,
@@ -89,12 +119,7 @@ export class OrderDetailService {
     })
      const orderDetail = await this.OrderDetailRepository.save(createOrderDetail)
 
-     await this.productRepository.decrement(
-      { id: product.id },     // Buscamos el producto por su id
-      'unit_stock',           // Columna que queremos disminuir
-      quantity                // Cantidad que se va a restar
-    );
-
+    
      // total orden
      await this.TotalAmount(orderId)
 
@@ -106,41 +131,88 @@ export class OrderDetailService {
   
 
   async update(id: string, updateOrderDetailDto: UpdateOrderDetailDto) {
-    const orderDetailUpdate = await this.OrderDetailRepository.preload({
-      id:id, ...updateOrderDetailDto
-    })
-    if(!orderDetailUpdate){
-      throw new NotFoundException(`no se encontro el order detail con el id ${id}`)
-    }
+    // 1. Buscamos el detalle y su orden/producto asociados
+  const existingDetail = await this.OrderDetailRepository.findOne({
+    where: { id },
+    relations: {
+      orderOrder_detail: true,
+      prodOrder_datail: true,
+    },
+  });
 
-    if(updateOrderDetailDto.id_product){
-      const product = await this.productRepository.findOne({
-        where: {id:updateOrderDetailDto.id_product}
-      })
-      if(!product){
-        throw new NotFoundException(`No existe el product con el id ${updateOrderDetailDto.id_product}`);
-      }
-      orderDetailUpdate.prodOrder_datail = product
-    }
+  if (!existingDetail) {
+    throw new NotFoundException(`No se encontró el order detail con el id ${id}`);
+  }
 
-    if(updateOrderDetailDto.id_order){
-      const order = await this.orderRepository.findOne({
-        where:{id:updateOrderDetailDto.id_order}
-      })
-      if(!order){
-        throw new NotFoundException(`No existe el order con el id ${updateOrderDetailDto.id_order}`)
-      }
-      orderDetailUpdate.orderOrder_detail = order
+  // 2. Verificamos la orden asociada y que esté en estado PENDING
+  const associatedOrder = existingDetail.orderOrder_detail;
 
-    }
-    const updateDetail= await this.OrderDetailRepository.save(orderDetailUpdate)
+  if (!associatedOrder) {
+    throw new BadRequestException(
+      'El detalle no tiene una orden asociada.',
+    );
+  }
 
-    if(updateDetail.id_order){
-      await this.TotalAmount(updateDetail.id_order)
-    }
+  if (associatedOrder.status !== orders_status.PENDING) {
+    throw new BadRequestException(
+      'no se puede actualizar orden completada.',
+    );
+  }
+
+  // 3. Bloqueamos cambios de producto (solo se permite actualizar la cantidad)
+  if (
+    updateOrderDetailDto.id_product &&
+    updateOrderDetailDto.id_product !== existingDetail.id_product
+  ) {
+    throw new BadRequestException(
+      'No se puede cambiar el producto desde este endpoint. Elimine el detalle y cree uno nuevo.',
+    );
+  }
+
+    const newQuantity = updateOrderDetailDto.quantity ?? 1;
+    const quantityDelta = newQuantity - existingDetail.quantity;
 
 
-    return updateDetail
+  
+
+    
+
+    await this.adjustProductStock(existingDetail.id_product, quantityDelta)
+
+  // 4. Actualizamos quantity (por defecto 1 si no se envía), conservando producto y orden
+  const orderDetailUpdate = await this.OrderDetailRepository.preload({
+      id: existingDetail.id,
+      quantity: newQuantity,
+      id_product: existingDetail.id_product,
+      prodOrder_datail: existingDetail.prodOrder_datail,
+      id_order: existingDetail.id_order ?? associatedOrder.id,
+      orderOrder_detail: associatedOrder,
+  });
+
+  // 5. Guardamos y recalculamos el total de la orden asociada
+  const savedDetail = await this.OrderDetailRepository.save(orderDetailUpdate!);
+  await this.TotalAmount(associatedOrder.id);
+
+  // 6. Consultamos el detalle actualizado y formateamos la respuesta
+  const updatedWithProduct = await this.OrderDetailRepository.findOne({
+    where: { id: savedDetail.id },
+    relations: { prodOrder_datail: true },
+  });
+
+  const {
+    unit_cost,
+    id_product,
+    orderOrder_detail,
+    prodOrder_datail,
+    ...restDetail
+  } = updatedWithProduct as any;
+
+  return {
+    ...restDetail,
+    prodOrder_datail: {
+      name: prodOrder_datail.name, 
+    },
+  };
   }
 
   async remove(id: string) {
@@ -167,10 +239,10 @@ export class OrderDetailService {
     }
 
     //order detail que se elimina se incrementa al stock
-    await this.productRepository.increment(
-      { id: orderDetailRemove.id_product },
-      'unit_stock',
-      orderDetailRemove.quantity
+    await this.adjustProductStock(
+      orderDetailRemove.id_product,
+      -orderDetailRemove.quantity,
+      
     );
     await this.OrderDetailRepository.delete(id)
 

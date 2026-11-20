@@ -38,7 +38,7 @@ export class Order {
     @ManyToOne(
         ()=>Customer,
         (customer)=>customer.customerOrders,
-        {cascade: true, nullable: true}
+        
     )
     @JoinColumn({name:'id_customer'})
     custOrder!: Customer | null

@@ -2,7 +2,7 @@ import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "t
 import { Supplier } from "../../supplier/entities/supplier.entity";
 import { Category } from "../../category/entities/category.entity";
 import { OrderDetail } from "../../order_detail/entities/order_detail.entity";
-import { OneToMany } from "typeorm/browser";
+import { OneToMany } from "typeorm";
 import { User } from "../../auth/entities/user.entity";
 
 @Entity()
@@ -37,7 +37,7 @@ export class Product {
     @ManyToOne(
         ()=>Supplier,
         (supplier) => supplier.ProdSupplier,
-        {cascade: true}
+       
     )
     @JoinColumn({name:'id_supplier'})
     supplierProd!:Supplier
@@ -47,7 +47,7 @@ export class Product {
     @ManyToOne(
         ()=>Category,
         (category)=>category.products,
-        {cascade: true}
+        
     )
     @JoinColumn({name:'id_category'})
     categoryProd!: Category
@@ -57,7 +57,7 @@ export class Product {
         ()=>OrderDetail,
         (OrderDetail)=>OrderDetail.prodOrder_datail
     )
-    orderProd!:OrderDetail
+    orderProd!:OrderDetail []
 
     @ManyToOne(
             ()=>User,
